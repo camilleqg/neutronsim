@@ -11,6 +11,7 @@ import textwrap
 import argparse 
 import json
 import csv
+import pandas as pd
 
 # buncha constants 
 
@@ -240,37 +241,160 @@ def sim_disp(events, reveal, pov, saveID, eventscale=1, noisescale=1, spacesigma
     title = 'none'
         
     if pov == 'xy': 
-        plt.scatter(photons[:,0], photons[:,1])
-        title = f'Y vs x view of {events} events with {eventscale}x scaled photons, {noisescale}x scaled noise, start time:  {str(start_time)}, start x: {str(start_x)}, start y: {str(start_y)}, without sources'
-        plt.ylabel('y coordinates')
-        plt.xlabel('x coordinates')
+        plt.scatter(photons[:,0], photons[:,1], s=20)
+        title = f'Y vs x view of {events} event(s), without source(s)'
+        plt.ylabel('Y Coordinates')
+        plt.xlabel('X Coordinates')
         if reveal: 
-            plt.scatter(truth[:,0], truth[:,1], c = 'r')
-            title = f'Y vs x view of {events} events with {eventscale}x scaled photons, {noisescale}x scaled noise, start time:  {str(start_time)}, start x: {str(start_x)}, start y: {str(start_y)}, with sources in red'
+            plt.scatter(truth[:,0], truth[:,1], c = 'r', s=20)
+            title = f'Y vs x view of {events} event(s), with source(s)'
     elif pov == 'timex': 
-        plt.scatter(photons[:,2], photons[:,0])
-        title = f'X vs time view of {events} events with {eventscale}x scaled photons, {noisescale}x scaled noise, start time:  {str(start_time)}, start x: {str(start_x)}, start y: {str(start_y)}, without sources'
-        plt.ylabel('x coordinates')
+        plt.scatter(photons[:,2], photons[:,0], s=20)
+        title = f'X vs time view of {events} event(s), without source(s)'
+        plt.ylabel('X Coordinates')
         plt.xlabel('Time')
         if reveal: 
-            plt.scatter(truth[:,2], truth[:,0], c = 'r')
-            title = f'X vs time view of {events} events with {eventscale}x scaled photons, {noisescale}x scaled noise, start time:  {str(start_time)}, start x: {str(start_x)}, start y: {str(start_y)}, with sources in red'
+            plt.scatter(truth[:,2], truth[:,0], c = 'r', s=20)
+            title = f'X vs time view of {events} event(s), with source(s)'
     elif pov == 'timey': 
-        plt.scatter(photons[:,2], photons[:,1])
-        title = f'Y vs time view of {events} events with {eventscale}x scaled photons, {noisescale}x scaled noise, start time:  {str(start_time)}, start x: {str(start_x)}, start y: {str(start_y)}, without sources'
-        plt.ylabel('y coordinates')
+        plt.scatter(photons[:,2], photons[:,1], s=20)
+        title = f'Y vs time view of {events} event(s), without source(s)'
+        plt.ylabel('Y Coordinates')
         plt.xlabel('Time')
         if reveal: 
-            plt.scatter(truth[:,2], truth[:,1], c = 'r')
-            title = f'Y vs time view of {events} events with {eventscale}x scaled photons, {noisescale}x scaled noise, start time:  {str(start_time)}, start x: {str(start_x)}, start y: {str(start_y)}, with sources in red'
+            plt.scatter(truth[:,2], truth[:,1], c = 'r', s=20)
+            title = f'Y vs time view of {events} event(s), with source(s)'
     
             
     wrapped_title = "\n".join(textwrap.wrap(title, width=60))
     plt.title(wrapped_title, fontsize=12)
     plt.tight_layout()
+    plt.grid()
     plt.savefig(saveID)
     plt.close()
+    #plt.show()
     
+### heatmap stuff 
+def heat_disp(events, reveal, pov, saveID, eventscale=1, noisescale=1, spacesigma=0.00021233045007200478, start_time=-1, start_x=-1, start_y=-1, file=None, dataSaveID = None):
+    verbose = False 
+    
+    if file: 
+        params = load_params(file)
+        verbose = params.get('verbose', False)
+        eventscale = params.get('eventscale', 1)
+        noisescale = params.get('noisescale', 1)
+        spacesigma = params.get('spacesigma', 0.00021233045007200478)
+        start_time = params.get('start_time', -1)
+        start_x = params.get('start_x', -1)
+        start_y = params.get('start_y', -1)
+        saveID = params.get('saveID', None)
+        dataSaveID = params.get('dataSaveID', None)
+    
+    # getting the photons 
+    data = sim(events, verbose=verbose, eventscale=eventscale, noisescale=noisescale, spacesigma=spacesigma, start_time=start_time, start_x=start_x, start_y=start_y, file=file, dataSaveID=dataSaveID)
+    photons = np.array(data[0])
+    numphotons = len(photons)
+    truth = np.array(data[1])
+    title = 'none'
+    true_x = []
+    true_y = []
+    image = 0
+    xmin = 0 
+    xmax = 0.1
+    ymin = 0 
+    ymax = 0.1
+    
+    if pov == 'xy': 
+        image = np.zeros([256, 256]) # initialize empty grid 
+        title = f'Y vs x view of {events} event(s), without source(s)'
+        for i in range(numphotons): 
+            x_coord = photons[i][0]
+            y_coord = photons[i][1]
+            if 0 < x_coord < detector_sidelength and 0 < y_coord < detector_sidelength: 
+                xpix = round(255*x_coord/detector_sidelength)
+                ypix = round(255*y_coord/detector_sidelength)
+                image[ypix, xpix] = 1
+        if reveal: 
+            title = f'Y vs x view of {events} event(s), with source(s)'
+            for i in range(events): 
+                x_coord = truth[i][0]
+                y_coord= truth[i][1]
+                xpix = round(255*x_coord/detector_sidelength)
+                true_x.append(xpix)
+                ypix = round(255*y_coord/detector_sidelength)
+                true_y.append(ypix)
+        xmin = min(photons[:,0])
+        xmax = max(photons[:,0])
+        ymin = min(photons[:,1])
+        ymax = max(photons[:,1])
+        plt.xlabel('X coordinates')
+        plt.ylabel('Y coordinates')
+        
+    if pov == 'timex': 
+        image = np.zeros([256,500]) # initialize empty grid with time in the x axis 
+        title = f'X vs time view of {events} event(s), without source(s)'
+        for i in range(numphotons): 
+            x_coord = photons[i][0]
+            time = photons[i][2]
+            if 0 < x_coord < detector_sidelength and time < time_window: # constraints for it to fit on the grid 
+                xpix = round(255*x_coord/detector_sidelength)
+                tpix = round(499*time/time_window)
+                image[xpix, tpix] = 1
+        if reveal: 
+            title = f'X vs time view of {events} event(s), with source(s)'
+            for i in range(events):
+                x_coord = truth[i][0]
+                time = truth[i][2]
+                xpix = round(255*x_coord/detector_sidelength)
+                true_y.append(xpix) # yes this is added to true_y, just refers to the y axis on the plot, not the coordinate
+                tpix = round(499*time/time_window)
+                true_x.append(tpix)
+        xmin = min(photons[:,2])
+        ymin = min(photons[:,0])
+        xmax = max(photons[:,2])
+        ymax = max(photons[:,0])
+        plt.xlabel('Time')
+        plt.ylabel('X coordinates')
+        
+    if pov == 'timey': 
+        image = np.zeros([256,500]) # initialize empty grid with time in the x axis 
+        title = f'Y vs time view of {events} event(s), without source(s)'
+        for i in range(numphotons): 
+            y_coord = photons[i][1]
+            time = photons[i][2]
+            if 0 < y_coord < detector_sidelength and time < time_window: 
+                ypix = round(255*y_coord/detector_sidelength)
+                tpix = round(499*time/time_window)
+                image[ypix, tpix] =1
+        if reveal: 
+            title = f'Y vs time view of {events} event(s), with source(s)'
+            for i in range(events):
+                y_coord = truth[i][1]
+                time = truth[i][2]
+                ypix = round(255*y_coord/detector_sidelength) 
+                true_y.append(ypix) 
+                tpix = round(499*time/time_window)
+                true_x.append(tpix)
+        xmin = min(photons[:,0])
+        ymin = min(photons[:,1])
+        xmax = max(photons[:,0])
+        ymax = max(photons[:,1])
+        plt.xlabel('Time')
+        plt.ylabel('Y coordinates')
+                
+    plt.imshow(image, extent = (xmin, xmax, ymin, ymax), origin = 'lower')
+    plt.scatter(true_x, true_y, color = 'red', marker = 'x', s = 25)
+    plt.title(title, fontsize=12)
+    plt.tight_layout()
+    plt.colorbar()
+    
+    #plt.savefig(saveID)
+    #plt.close()
+    
+                
+            
+        
+
 ### CLI STUFF 
 
 # top level parser
@@ -316,21 +440,48 @@ args = parser.parse_args()
 if args.command == "simulate": 
     sim(events=args.events, verbose=args.verbose, eventscale=args.eventscale, noisescale=args.noisescale, spacesigma=args.spacesigma, start_time=args.starttime, start_x=args.startx, start_y=args.starty, dataSaveID=args.datafile, file=args.file)
 elif args.command == "display": 
-    sim_disp(events=args.events, reveal=args.reveal, pov=args.pov, saveID=args.savefig, eventscale=args.eventscale, noisescale=args.noisescale, spacesigma=args.spacesigma, start_time=args.starttime, start_x=args.startx, start_y=args.starty, file=args.file, dataSaveID=args.datafile)
+    heat_disp(events=args.events, reveal=args.reveal, pov=args.pov, saveID=args.savefig, eventscale=args.eventscale, noisescale=args.noisescale, spacesigma=args.spacesigma, start_time=args.starttime, start_x=args.startx, start_y=args.starty, file=args.file, dataSaveID=args.datafile)
 else: 
     parser.print_help()
 
 
+#### reading a saved excel file 
+# data = pd.read_csv('overlap.csv')
+
+# x = data['x[px]']
+# y = data['y[px]']
+# t = data['t[s]']
+
+
+# image = np.zeros([256,500]) # initialize empty grid with time in the x axis 
+
+# for i in range(len(t)): 
+#     y_coord = y[i]
+#     time = t[i]
+#     if 0 < y_coord < detector_sidelength and time < time_window: 
+#         ypix = round(255*y_coord/detector_sidelength)
+#         tpix = round(499*time/time_window)
+#         image[ypix, tpix] =1
+
+# plt.imshow(image)
+# plt.title('Y vs time view of 8 event(s), without source(s)')
+# plt.ylabel('Y coordinates')
+# plt.xlabel('Time coordinates')
+# plt.colorbar()
 
 
 
+# x = np.linspace(0,0.01, 100)
+# y = decayfit(x)
 
-
-
-
-
-
-
+# plt.scatter(x,y, marker = '+')
+# plt.title('Best fit distribution photon decay with time')
+# plt.ylabel('Number of photons')
+# plt.yscale('log')
+# plt.grid()
+# plt.ylim(ymin=1, ymax = max(y)*100)
+# plt.xlabel('Time(s)') 
+# 
 
 
 
